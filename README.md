@@ -79,6 +79,36 @@ Bioengineering_Paper_project_data/
 
 Each CSV contains ~60 seconds of 4-channel PPG sampled at 200 Hz (12000 samples).
 
+## Signal Analysis & Discarded Subjects
+
+The paper states that **180 subjects** were collected but only **162 subjects** were used for training/evaluation. The authors do not specify which 18 subjects were discarded or the criteria for exclusion.
+
+We provide a visualization notebook ([`visualize_signals.ipynb`](visualize_signals.ipynb)) that plots raw and bandpass-filtered PPG signals for all 180 subjects to **identify the 18 discarded subjects** through visual inspection of signal quality (e.g., flat signals, excessive noise, motion artifacts, clipping).
+
+<p align="center">
+  <img src="assets/raw_signals_all.png" width="800"/>
+  <br>
+  <em>Raw PPG signals — all 180 subjects (first 5 seconds)</em>
+</p>
+
+<p align="center">
+  <img src="assets/filtered_signals_all.png" width="800"/>
+  <br>
+  <em>Bandpass-filtered PPG signals (0.5–8 Hz) — all 180 subjects</em>
+</p>
+
+<p align="center">
+  <img src="assets/comparison_raw_vs_filtered_all.png" width="800"/>
+  <br>
+  <em>Side-by-side comparison: raw vs. filtered for all subjects</em>
+</p>
+
+The notebook also saves per-subject plots to `outputs/images/` for detailed inspection:
+- `raw_signals/subject_001.png` … `subject_180.png`
+- `filtered_signals/subject_001.png` … `subject_180.png`
+- `comparison_raw_vs_filtered/subject_001.png` … `subject_180.png`
+- `full_signal_detail/subject_001.png` … `subject_180.png`
+
 ## Usage
 
 ### Train
