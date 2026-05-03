@@ -16,7 +16,7 @@ This repository provides a clean, modular PyTorch implementation of the ACNN-BiL
 The model fuses four wavelengths of PPG (660 nm, 730 nm, 850 nm, 940 nm) into 12-channel CWT scalogram images, then processes them through an attention-based CNN followed by a bidirectional LSTM to predict systolic and diastolic blood pressure.
 
 <p align="center">
-  <img src="outputs/images/cwt_sample.png" width="700"/>
+  <img src="assets/cwt_sample.png" width="700"/>
   <br>
   <em>CWT scalograms from 4-wavelength PPG (logarithmic frequency scaling)</em>
 </p>
