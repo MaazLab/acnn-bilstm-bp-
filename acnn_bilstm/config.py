@@ -31,6 +31,15 @@ class Config:
     highcut: float = 8.0         # Bandpass high (Hz)
     filter_order: int = 2        # Butterworth order
 
+    # ── Signal quality screening (paper Section 2.1) ───────────────────
+    # Subjects with missing or incomplete wavelength signals, identified
+    # via visual inspection and inter-channel correlation analysis.
+    # All 18 are normotensive; matches paper's 180 → 162 reduction.
+    discard_ids: List[int] = field(default_factory=lambda: [
+        6, 15, 27, 32, 61, 63, 67, 70, 76, 78,
+        80, 111, 120, 122, 142, 155, 163, 173,
+    ])
+
     # ── Windowing (paper Section 2.2) ────────────────────────────────────
     window_sec: float = 5.0      # Window length in seconds
     stride_sec: float = 1.0      # Stride in seconds

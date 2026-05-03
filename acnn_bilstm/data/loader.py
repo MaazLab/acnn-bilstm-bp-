@@ -90,11 +90,17 @@ def load_all_subjects(
     if not csv_files:
         raise FileNotFoundError(f"No CSV files found in {cfg.data_dir}")
 
+    discard_set = set(cfg.discard_ids) if cfg.discard_ids else set()
+
     for csv_path in csv_files:
         try:
             subject_id = int(csv_path.stem)
         except ValueError:
             skipped.append((csv_path.name, "Filename is not a number"))
+            continue
+
+        if subject_id in discard_set:
+            skipped.append((csv_path.name, "Discarded: incomplete wavelength signal"))
             continue
 
         if subject_id not in labels.index:
