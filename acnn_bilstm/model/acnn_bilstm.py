@@ -34,7 +34,7 @@ class ACNNBiLSTM(nn.Module):
         super().__init__()
         self.cfg = cfg
         ch = cfg.cnn_channels  # [32, 32, 32, 64, 64, 128, 128, 256]
-        st = cfg.cnn_strides   # [2, 1, 2, 1, 2, 2, 2]
+        pl = cfg.cnn_pool      # [T, F, T, F, T, T, T]
 
         # ── Initial Conv (before the ×7 ACNN loop) ──────────────────────
         self.init_conv = nn.Conv2d(
@@ -43,11 +43,14 @@ class ACNNBiLSTM(nn.Module):
         self.init_act = nn.ReLU(inplace=True)
         self.init_bn = nn.BatchNorm2d(ch[0])
 
-        # ── 7 ACNN blocks ───────────────────────────────────────────────
+        # ── 7 ACNN blocks (stride=1 Conv + optional MaxPool2d) ──────────
+        # MaxPool2d(2,2) preserves the strongest feature in each 2x2 region,
+        # providing translational invariance — unlike strided conv which
+        # discards intermediate activations.
         self.blocks = nn.ModuleList()
         for i in range(7):
             self.blocks.append(
-                ACNNBlock(ch[i], ch[i + 1], stride=st[i], se_reduction=cfg.se_reduction)
+                ACNNBlock(ch[i], ch[i + 1], pool=pl[i], se_reduction=cfg.se_reduction)
             )
 
         # ── Compute BiLSTM input dimensions via a dummy forward pass ────

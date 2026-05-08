@@ -75,9 +75,12 @@ class Config:
         default_factory=lambda: [32, 32, 32, 64, 64, 128, 128, 256]
         # [init_conv] + [block1..block7]
     )
-    cnn_strides: List[int] = field(
-        default_factory=lambda: [2, 1, 2, 1, 2, 2, 2]
-        # stride for each of the 7 ACNN blocks
+    cnn_pool: List[bool] = field(
+        default_factory=lambda: [True, False, True, False, True, True, True]
+        # MaxPool2d(2,2) applied after each of the 7 ACNN blocks.
+        # True  → pool  (was stride=2): blocks 1, 3, 5, 6, 7
+        # False → no pool (was stride=1): blocks 2, 4
+        # Final spatial dims: 128x256 -> 4x8 (same as before, but via MaxPool)
     )
     se_reduction: int = 16                  # SE attention reduction ratio
     lstm_hidden: int = 256                  # BiLSTM hidden size
@@ -112,8 +115,8 @@ class Config:
         assert len(self.cnn_channels) == 8, (
             f"cnn_channels must have 8 entries (init + 7 blocks), got {len(self.cnn_channels)}"
         )
-        assert len(self.cnn_strides) == 7, (
-            f"cnn_strides must have 7 entries (one per ACNN block), got {len(self.cnn_strides)}"
+        assert len(self.cnn_pool) == 7, (
+            f"cnn_pool must have 7 entries (one per ACNN block), got {len(self.cnn_pool)}"
         )
         assert self.n_scales == self.target_img_height, (
             "n_scales must equal target_img_height"
