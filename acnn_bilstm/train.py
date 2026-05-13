@@ -25,6 +25,7 @@ from acnn_bilstm.data.dataset import (
     concat_windows,
     subject_level_split,
 )
+from acnn_bilstm.data.scaler import BPScaler
 from acnn_bilstm.model.acnn_bilstm import ACNNBiLSTM
 from acnn_bilstm.training.trainer import evaluate, get_device, train_model
 from acnn_bilstm.training.cross_validation import run_cross_validation
@@ -229,18 +230,38 @@ def main() -> None:
         y_val_windows=y_train[final_val_win],
     )
 
+    # ── Fit BP scaler on training windows only ───────────────────────────
+    # Fit BEFORE the overfit test so the test uses the same normalised labels
+    # that full training will use.
+    scaler = BPScaler().fit(y_train[final_train_win])
+    logger.info(
+        "BP scaler | SBP mean=%.1f std=%.1f | DBP mean=%.1f std=%.1f",
+        scaler.mean_[0], scaler.std_[0],
+        scaler.mean_[1], scaler.std_[1],
+    )
+    logger.info(
+        "Training MAE will be in normalised units. "
+        "Approx: 1.0 norm ~ SBP %.1f mmHg | DBP %.1f mmHg",
+        scaler.std_[0], scaler.std_[1],
+    )
+    scaler.save(cfg.checkpoints_dir / "bp_scaler.npz")
+
+    y_train_norm = scaler.transform(y_train)
+    y_test_norm  = scaler.transform(y_test)
+
     if args.diagnose:
         run_overfit_test(
             X_cwt=X_train_cwt,
-            y=y_train,
+            y=y_train_norm,
             final_train_sids=final_train_sids,
             subject_window_map=subject_window_map,
             cfg=cfg,
+            scaler=scaler,
         )
     else:
         logger.info("Overfit test SKIPPED (pass --diagnose to enable)")
 
-    train_dataset = BPDataset(X_train_cwt, y_train)
+    train_dataset = BPDataset(X_train_cwt, y_train_norm)
     train_loader = DataLoader(
         Subset(train_dataset, final_train_win.tolist()),
         batch_size=cfg.batch_size, shuffle=True,
@@ -270,15 +291,18 @@ def main() -> None:
     logger.info("Phase 8: Test set evaluation")
     logger.info("=" * 70)
 
-    test_dataset = BPDataset(X_test_cwt, y_test)
+    test_dataset = BPDataset(X_test_cwt, y_test_norm)
     test_loader = DataLoader(test_dataset, batch_size=cfg.batch_size, shuffle=False)
 
     criterion = torch.nn.L1Loss()
-    test_loss, test_preds, test_targets = evaluate(model, test_loader, criterion, device)
-    logger.info("Test MAE (overall): %.4f", test_loss)
+    test_loss_norm, test_preds_norm, _ = evaluate(model, test_loader, criterion, device)
+    logger.info("Test MAE (normalised units): %.4f", test_loss_norm)
 
-    sbp_metrics = compute_all_metrics(test_targets[:, 0], test_preds[:, 0], "SBP (Systolic)")
-    dbp_metrics = compute_all_metrics(test_targets[:, 1], test_preds[:, 1], "DBP (Diastolic)")
+    # Denormalise predictions back to mmHg for all metrics and plots
+    test_preds = scaler.inverse_transform(test_preds_norm)
+
+    sbp_metrics = compute_all_metrics(y_test[:, 0], test_preds[:, 0], "SBP (Systolic)")
+    dbp_metrics = compute_all_metrics(y_test[:, 1], test_preds[:, 1], "DBP (Diastolic)")
 
     print_summary_table(sbp_metrics, dbp_metrics)
     print_bhs_table(sbp_metrics, dbp_metrics)
@@ -289,12 +313,12 @@ def main() -> None:
     logger.info("=" * 70)
 
     save_bland_altman(
-        test_targets[:, 0], test_preds[:, 0],
+        y_test[:, 0], test_preds[:, 0],
         "Bland-Altman for SBP prediction via Trial 3",
         cfg.images_dir / "bland_altman_sbp.png",
     )
     save_bland_altman(
-        test_targets[:, 1], test_preds[:, 1],
+        y_test[:, 1], test_preds[:, 1],
         "Bland-Altman for DBP prediction via Trial 3",
         cfg.images_dir / "bland_altman_dbp.png",
     )
