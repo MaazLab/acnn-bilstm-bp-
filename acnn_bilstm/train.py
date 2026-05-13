@@ -28,6 +28,7 @@ from acnn_bilstm.data.dataset import (
 from acnn_bilstm.model.acnn_bilstm import ACNNBiLSTM
 from acnn_bilstm.training.trainer import evaluate, get_device, train_model
 from acnn_bilstm.training.cross_validation import run_cross_validation
+from acnn_bilstm.diagnostics import run_mean_baseline, run_overfit_test
 from acnn_bilstm.evaluation.metrics import (
     compute_all_metrics,
     print_bhs_table,
@@ -75,6 +76,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--lr", type=float, default=None,
         help="Override learning rate",
+    )
+    parser.add_argument(
+        "--diagnose", action="store_true",
+        help="Run diagnostics: mean baseline + 10-sample overfit test before training",
     )
     return parser.parse_args()
 
@@ -213,6 +218,27 @@ def main() -> None:
 
     logger.info("Final train: %d subjects (%d windows)", len(final_train_sids), len(final_train_win))
     logger.info("Final val (early stop): %d subjects (%d windows)", len(final_val_sids), len(final_val_win))
+
+    # ── Phase 7a: Diagnostics ────────────────────────────────────────────
+    logger.info("\n" + "=" * 70)
+    logger.info("Phase 7a: Diagnostics")
+    logger.info("=" * 70)
+
+    run_mean_baseline(
+        y_train_windows=y_train[final_train_win],
+        y_val_windows=y_train[final_val_win],
+    )
+
+    if args.diagnose:
+        run_overfit_test(
+            X_cwt=X_train_cwt,
+            y=y_train,
+            final_train_sids=final_train_sids,
+            subject_window_map=subject_window_map,
+            cfg=cfg,
+        )
+    else:
+        logger.info("Overfit test SKIPPED (pass --diagnose to enable)")
 
     train_dataset = BPDataset(X_train_cwt, y_train)
     train_loader = DataLoader(
