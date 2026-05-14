@@ -1,6 +1,13 @@
-"""ACNN block: Conv2D → ReLU → BatchNorm → SE Attention.
+"""ACNN block: Conv2D → BatchNorm → SELU → SE Attention.
 
-One block as depicted in the paper's Figure 3 (inside the "×7" loop).
+Operation order follows the paper text (Section 3.3), NOT the figure label:
+  - Paper text: "BN alleviates gradient dispersion... Then, the self-activation
+    function is utilized" — BN comes first, SELU comes after.
+  - Logical reason: BN normalizes raw conv output to zero-mean, unit-variance,
+    which is the exact input condition required for SELU's self-normalization
+    guarantee (Klambauer et al., NeurIPS 2017, arXiv:1706.03462) to hold.
+    Placing BN after SELU (as Figure 3 label suggests) would undo SELU's
+    normalization via BN's learned γ/β parameters, defeating its purpose.
 """
 
 from __future__ import annotations
@@ -40,15 +47,18 @@ class ACNNBlock(nn.Module):
         self.conv = nn.Conv2d(
             in_channels, out_channels, kernel_size=3, stride=1, padding=1
         )
-        self.act = nn.ReLU(inplace=True)
+        # SELU: inplace=True must NOT be used — it corrupts negative-region
+        # gradients in autograd. SELU is self-normalizing (Klambauer 2017).
+        self.act = nn.SELU()
         self.bn = nn.BatchNorm2d(out_channels)
         self.attn = SEBlock(out_channels, reduction=se_reduction)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2) if pool else None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv(x)
-        x = self.act(x)
-        x = self.bn(x)
+        x = self.bn(x)    # BN first: normalises raw conv output to ~N(0,1)
+        x = self.act(x)   # SELU second: self-normalisation guarantee requires
+                          # near-standard-normal input (provided by BN above)
         x = self.attn(x)
         if self.pool is not None:
             x = self.pool(x)

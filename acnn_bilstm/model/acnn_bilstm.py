@@ -2,8 +2,8 @@
 
 Architecture:
   Input (B, 12, 128, 256)
-  → Initial Conv2D + ReLU + BN
-  → 7 × ACNN Block (Conv2D + ReLU + BN + SE Attention)
+  → Initial Conv2D + BN + SELU
+  → 7 × ACNN Block (Conv2D + BN + SELU + SE Attention)
   → Reshape to sequence (B, seq_len, feat_dim)
   → 2 × BiLSTM
   → FC → Dropout → FC → Dropout
@@ -40,7 +40,7 @@ class ACNNBiLSTM(nn.Module):
         self.init_conv = nn.Conv2d(
             cfg.in_channels, ch[0], kernel_size=3, padding=1
         )
-        self.init_act = nn.ReLU(inplace=True)
+        self.init_act = nn.SELU()  # matches ACNN blocks — no inplace
         self.init_bn = nn.BatchNorm2d(ch[0])
 
         # ── 7 ACNN blocks (stride=1 Conv + optional MaxPool2d) ──────────
@@ -85,7 +85,7 @@ class ACNNBiLSTM(nn.Module):
         self.drop2 = nn.Dropout(cfg.dropout)
 
     def _forward_cnn(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.init_bn(self.init_act(self.init_conv(x)))
+        x = self.init_act(self.init_bn(self.init_conv(x)))  # Conv → BN → SELU
         for block in self.blocks:
             x = block(x)
         return x
@@ -103,7 +103,7 @@ class ACNNBiLSTM(nn.Module):
 
         x = x[:, -1, :]                         # last timestep → (B, 2*hidden)
 
-        x = self.drop1(F.relu(self.fc1(x)))
+        x = self.drop1(F.selu(self.fc1(x)))
         x = self.drop2(self.fc2(x))
         return x
 
